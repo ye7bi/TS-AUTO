@@ -1,0 +1,1 @@
+pyinstaller --onefile --windowed --name "Generateur_Termsheet_LCL" votre_script.py
