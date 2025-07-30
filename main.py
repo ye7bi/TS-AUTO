@@ -131,6 +131,15 @@ class NumberToWords:
             result.append(cls.UNITS[number])
         
         return " ".join(result)
+    
+def format_number_with_dots(number: str) -> str:
+    """Formatte un nombre sous forme 1.000.000"""
+    try:
+        n = int(number.replace(" ", "").replace(",", ""))
+        return f"{n:,}".replace(",", ".")
+    except:
+        return number  # Si non numérique, on retourne brut
+
 
 
 class ClauseWidget(QWidget):
@@ -269,12 +278,10 @@ class TermsheetGenerator(QMainWindow):
             ('nom_sccv', 'Nom de la SCCV (Emprunteur)'),
             ('numero_siren', 'Numéro SIREN'),
             ('ville_rcs', 'Ville RCS'),
-            ('noms_associes', 'Nom(s) et SIREN(s) des associés'),
             ('montant_credit', 'Montant du crédit promoteur (€)'),
-            ('montant_gfa', 'Montant de la GFA (€ HT)'),
+            ('montant_gfa', 'Prix de (€ HT)'),
             ('frais_dossier', 'Frais de dossier (€)'),
             ('montant_apports', 'Montant des apports investis'),
-            ('date_echeance_credit', 'Date d\'échéance du crédit'),
             ('date_echeance_gfa', 'Date d\'échéance de la GFA')
         ]
         
@@ -395,14 +402,6 @@ class TermsheetGenerator(QMainWindow):
         niveau_global_widget.setLayout(niveau_global_layout)
         commercialisation_layout.addRow('Niveau commercialisation global', niveau_global_widget)
         
-        # Niveau commercialisation libre
-        self.niveau_commercialisation_libre = QDoubleSpinBox()
-        self.niveau_commercialisation_libre.setDecimals(0)
-        self.niveau_commercialisation_libre.setMaximum(100)
-        self.niveau_commercialisation_libre.setValue(30)
-        self.niveau_commercialisation_libre.setSuffix(' %')
-        commercialisation_layout.addRow('Niveau commercialisation libre', self.niveau_commercialisation_libre)
-        
         commercialisation_group.setLayout(commercialisation_layout)
         scroll_layout.addWidget(commercialisation_group)
         
@@ -472,6 +471,7 @@ class TermsheetGenerator(QMainWindow):
                 'text': 'Engagement de l\'emprunteur d\'informer la banque de toute demande de PC modificatif et ce jusqu\'au remboursement complet des concours accordés',
                 'fields': []
             },
+
             {
                 'name': 'Contrat de réservation bailleur',
                 'text': 'Justification d\'un contrat de réservation signé de [nom du bailleur] pour la partie « [bloc social / LLS (logements locatifs sociaux) / LLI (logements locatifs intermédiaires) / ULS (usufruit locatif social)] » comprenant nom, adresse, prix de vente TTC et échéancier des versements',
@@ -479,7 +479,15 @@ class TermsheetGenerator(QMainWindow):
                     {'name': 'nom_bailleur_reservation', 'label': 'Nom du bailleur (réservation)', 'type': 'text'},
                     {'name': 'type_bloc_reservation', 'label': 'Type de bloc (social/LLS/LLI/ULS)', 'type': 'text'}
                 ]
-            }
+            },
+            {
+                'name': 'Niveau de commercialisation libre',
+                'text': "Justification d'un niveau de commercialisation du CATTC « libre » dépassant [niveau_commercialisation_libre]% du CATTC « libre » (attestation notariée indiquant le niveau de pré commercialisation) ;",
+                'fields': [
+                    {'name': 'niveau_commercialisation_libre', 'label': 'Niveau commercialisation libre (%)', 'type': 'number'}
+                ]
+            },
+
         ]
         
         self.clause_widgets = []
@@ -520,7 +528,12 @@ class TermsheetGenerator(QMainWindow):
         
         # Champs principaux
         for field_key, widget in self.fields.items():
-            values[field_key] = widget.text().strip()
+            text = widget.text().strip()
+            # Pour les montants, applique le formatage à points
+            if field_key in ['montant_credit', 'montant_gfa', 'frais_dossier', 'montant_apports']:
+                text = format_number_with_dots(text)
+            values[field_key] = text
+
         
         # Civilité
         values['civilite'] = self.civilite_combo.currentText()
@@ -537,7 +550,6 @@ class TermsheetGenerator(QMainWindow):
         
         # Niveaux de commercialisation
         values['niveau_commercialisation'] = f"{int(self.niveau_commercialisation.value())}"
-        values['niveau_commercialisation_libre'] = f"{int(self.niveau_commercialisation_libre.value())}"
         
         # État des cases à cocher
         values['inclure_apports'] = self.inclure_apports_checkbox.isChecked()
@@ -696,7 +708,6 @@ class TermsheetGenerator(QMainWindow):
             '[n° siren]': values.get('numero_siren', ''),
             '[Ville]': values.get('ville_rcs', ''),
             '[nom de la SCCV]': values.get('nom_sccv', ''),
-            '[nom(s) et siren(s) des associés]': values.get('noms_associes', ''),
             '[objet]': values.get('objet', ''),
             '[le bailleur]': values.get('nom_bailleur_agrement', ''),
             '[nombre_credit]': values.get('montant_credit', ''),
@@ -720,6 +731,7 @@ class TermsheetGenerator(QMainWindow):
             '[niveau_commercialisation_libre]': values.get('niveau_commercialisation_libre', ''),
             '[nom_bailleur_agrement]': values.get('nom_bailleur_agrement', ''),
             '[type_bloc]': values.get('type_bloc', ''),
+            '[date_echeance_gfa]': values.get('date_echeance_gfa', ''),
             '[nom du bailleur]': values.get('nom_bailleur_reservation', ''),
             '[nom_bailleur_reservation]': values.get('nom_bailleur_reservation', ''),
             '[type_bloc_reservation]': values.get('type_bloc_reservation', ''),
@@ -727,10 +739,10 @@ class TermsheetGenerator(QMainWindow):
         
         # Gestion du niveau de commercialisation avec/sans apports
         if values.get('inclure_apports', False):
-            replacements['[niveau_commercialisation]'] = f"{values.get('niveau_commercialisation', '')}%"
-            replacements['[mention_apports]'] = ', (en y ajoutant les apports),'
+            replacements['[niveau_commercialisation]'] = f"{values.get('niveau_commercialisation', '')}"
+            replacements['[mention_apports]'] = '(en y ajoutant les apports),'
         else:
-            replacements['[niveau_commercialisation]'] = f"{values.get('niveau_commercialisation', '')}%"
+            replacements['[niveau_commercialisation]'] = f"{values.get('niveau_commercialisation', '')}"
             replacements['[mention_apports]'] = ''
         
         # Gestion des conditions spéculatives
@@ -785,6 +797,17 @@ class TermsheetGenerator(QMainWindow):
             replacements['[clause_contrat_reservation]'] = f"Justification d'un contrat de réservation signé de {values.get('nom_bailleur_reservation', '')} pour la partie « {values.get('type_bloc_reservation', '')} » comprenant nom, adresse, prix de vente TTC et échéancier des versements ;"
         else:
             replacements['[clause_contrat_reservation]'] = ''
+
+        # Clause 7: Niveau de commercialisation libre
+        if len(self.clause_widgets) > 6 and self.clause_widgets[6].is_enabled():
+            niveau = values.get('niveau_commercialisation_libre', '')
+            replacements['[clause_niveau_commercialisation_libre]'] = (
+                f"Justification d'un niveau de commercialisation du CATTC « libre » dépassant {niveau}% du CATTC « libre » (attestation notariée indiquant le niveau de pré commercialisation) ;"
+                if niveau else ''
+            )
+        else:
+            replacements['[clause_niveau_commercialisation_libre]'] = ''
+
         
         # Effectuer les remplacements
         new_text = original_text
