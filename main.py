@@ -565,20 +565,21 @@ class TermsheetGenerator(QMainWindow):
         # Convertir les montants en lettres
         try:
             if values['montant_credit']:
-                montant = int(values['montant_credit'].replace(' ', '').replace(',', ''))
+                montant = int(values['montant_credit'].replace(' ', '').replace('.', '').replace(',', ''))
                 values['montant_credit_lettres'] = NumberToWords.convert(montant)
-            
+
             if values['montant_gfa']:
-                montant = int(values['montant_gfa'].replace(' ', '').replace(',', ''))
+                montant = int(values['montant_gfa'].replace(' ', '').replace('.', '').replace(',', ''))
                 values['montant_gfa_lettres'] = NumberToWords.convert(montant)
-            
+
             if values['frais_dossier']:
-                montant = int(values['frais_dossier'].replace(' ', '').replace(',', ''))
+                montant = int(values['frais_dossier'].replace(' ', '').replace('.', '').replace(',', ''))
                 values['frais_dossier_lettres'] = NumberToWords.convert(montant)
-            
+
             if values['montant_apports']:
-                montant = int(values['montant_apports'].replace(' ', '').replace(',', ''))
+                montant = int(values['montant_apports'].replace(' ', '').replace('.', '').replace(',', ''))
                 values['montant_apports_lettres'] = NumberToWords.convert(montant)
+
         except ValueError:
             pass  # Ignorer les erreurs de conversion
         
