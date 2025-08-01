@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Générateur automatique de Termsheet Word
-Interface PyQt6 pour remplir un template de termsheet et générer un fichier Word final
+Générateur automatique de Termsheet CII (Caution d'Indemnité d'Immobilisation) Word
+Interface PyQt6 pour remplir un template de termsheet CII et générer un fichier Word final
 """
 
 import sys
@@ -16,9 +16,9 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QFormLayout, QLineEdit, QTextEdit, QCheckBox, QLabel, QPushButton,
     QFileDialog, QMessageBox, QScrollArea, QGroupBox, QSpinBox,
-    QComboBox, QFrame, QDoubleSpinBox
+    QComboBox, QFrame, QDoubleSpinBox, QDateEdit
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QDate
 from PyQt6.QtGui import QFont, QPixmap
 
 try:
@@ -132,94 +132,28 @@ class NumberToWords:
         
         return " ".join(result)
     
+
 def format_number_with_dots(number: str) -> str:
     """Formatte un nombre sous forme 1.000.000"""
     try:
-        n = int(number.replace(" ", "").replace(",", ""))
+        n = int(number.replace(" ", "").replace(",", "").replace(".", ""))
         return f"{n:,}".replace(",", ".")
     except:
-        return number  # Si non numérique, on retourne brut
+        return number
 
 
-
-class ClauseWidget(QWidget):
-    """Widget pour une clause optionnelle avec ses champs associés"""
-    
-    def __init__(self, clause_name: str, clause_text: str, fields: List[Dict] = None):
-        super().__init__()
-        self.clause_name = clause_name
-        self.clause_text = clause_text
-        self.fields = fields or []
-        self.field_widgets = {}
-        
-        self.setup_ui()
-    
-    def setup_ui(self):
-        layout = QVBoxLayout()
-        
-        # Case à cocher pour activer/désactiver la clause
-        self.checkbox = QCheckBox(self.clause_name)
-        self.checkbox.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        self.checkbox.toggled.connect(self.toggle_fields)
-        layout.addWidget(self.checkbox)
-        
-        # Container pour les champs
-        self.fields_container = QWidget()
-        fields_layout = QFormLayout()
-        
-        # Créer les champs
-        for field in self.fields:
-            field_name = field['name']
-            field_type = field.get('type', 'text')
-            
-            if field_type == 'number':
-                widget = QSpinBox()
-                widget.setMaximum(999)
-                widget.setMinimum(0)
-            else:
-                widget = QLineEdit()
-            
-            self.field_widgets[field_name] = widget
-            fields_layout.addRow(field['label'], widget)
-        
-        self.fields_container.setLayout(fields_layout)
-        self.fields_container.setVisible(False)  # Masqué par défaut
-        layout.addWidget(self.fields_container)
-        
-        self.setLayout(layout)
-    
-    def toggle_fields(self, checked: bool):
-        """Affiche/masque les champs selon l'état de la case à cocher"""
-        self.fields_container.setVisible(checked)
-    
-    def is_enabled(self) -> bool:
-        """Retourne True si la clause est activée"""
-        return self.checkbox.isChecked()
-    
-    def get_field_values(self) -> Dict[str, str]:
-        """Retourne les valeurs des champs"""
-        values = {}
-        for field_name, widget in self.field_widgets.items():
-            if isinstance(widget, QSpinBox):
-                values[field_name] = str(widget.value())
-            else:
-                values[field_name] = widget.text().strip()
-        return values
-
-
-class TermsheetGenerator(QMainWindow):
-    """Application principale pour générer les termsheets"""
+class TermsheetCIIGenerator(QMainWindow):
+    """Application principale pour générer les termsheets CII"""
     
     def __init__(self):
         super().__init__()
         self.template_path = None
         self.setup_ui()
-        self.setup_clauses()
         self.load_default_template()
     
     def load_default_template(self):
         """Charge automatiquement le template par défaut"""
-        default_template = "template_ts.docx"
+        default_template = "template_cii.docx"
         
         if os.path.exists(default_template):
             self.template_path = default_template
@@ -233,8 +167,8 @@ class TermsheetGenerator(QMainWindow):
     
     def setup_ui(self):
         """Configure l'interface utilisateur"""
-        self.setWindowTitle("Générateur de Termsheet - LCL")
-        self.setGeometry(100, 100, 900, 800)
+        self.setWindowTitle("Générateur de Termsheet CII - LCL")
+        self.setGeometry(100, 100, 900, 700)
         
         # Widget principal avec scroll
         main_widget = QWidget()
@@ -272,27 +206,15 @@ class TermsheetGenerator(QMainWindow):
             ('nom_promoteur', 'Nom du promoteur'),
             ('nom_contact', 'Nom du contact'),
             ('adresse_promoteur', 'Adresse du promoteur'),
-            ('date', 'Date'),
-            ('ville', 'Ville'),
+            ('date', 'Date (format DD/MM/YYYY)'),
             ('reference_dossier', 'Référence dossier'),
             ('nom_sccv', 'Nom de la SCCV (Emprunteur)'),
             ('numero_siren', 'Numéro SIREN'),
             ('ville_rcs', 'Ville RCS'),
-            ('montant_credit', 'Montant du crédit promoteur (€)'),
-            ('montant_gfa', 'Prix de (€ HT)'),
-            ('frais_dossier', 'Frais de dossier (€)'),
-            ('montant_apports', 'Montant des apports investis'),
-            ('date_echeance_gfa', 'Date d\'échéance de la GFA')
         ]
         
         for field_key, field_label in main_fields:
-            if field_key in ['montant_credit', 'montant_gfa', 'frais_dossier', 'montant_apports']:
-                # Champs numériques pour les montants
-                widget = QLineEdit()
-                widget.setPlaceholderText("Entrez le montant en euros")
-            else:
-                widget = QLineEdit()
-            
+            widget = QLineEdit()
             self.fields[field_key] = widget
             main_info_layout.addRow(field_label, widget)
         
@@ -304,117 +226,91 @@ class TermsheetGenerator(QMainWindow):
         # Objet/Description (zone de texte plus grande)
         self.objet_text = QTextEdit()
         self.objet_text.setMaximumHeight(80)
-        self.objet_text.setPlainText("Réalisation à,…. , d'un immeuble neuf d'une surface de plancher de m² conçu en R+ comprenant logements et places de stationnement")
+        self.objet_text.setPlainText("")
         main_info_layout.addRow('Objet / Description du programme', self.objet_text)
         
         main_info_group.setLayout(main_info_layout)
         scroll_layout.addWidget(main_info_group)
         
-        # Section Taux et Conditions
-        taux_group = QGroupBox("Taux et Conditions")
-        taux_layout = QFormLayout()
+        # Section CII (Caution d'Indemnité d'Immobilisation)
+        cii_group = QGroupBox("Cautions d'Indemnité d'Immobilisation (CII)")
+        cii_main_layout = QVBoxLayout()
         
-        # Cases à cocher pour activer/désactiver les sections
-        self.conditions_speculatives_checkbox = QCheckBox("Inclure les conditions spéculatives")
-        self.conditions_speculatives_checkbox.setChecked(True)
-        taux_layout.addRow(self.conditions_speculatives_checkbox)
+        # Container pour les CII
+        self.cii_container = QWidget()
+        self.cii_layout = QVBoxLayout()
+        self.cii_container.setLayout(self.cii_layout)
         
-        # Taux spéculatif
-        self.taux_speculatif = QDoubleSpinBox()
-        self.taux_speculatif.setDecimals(2)
-        self.taux_speculatif.setMaximum(99.99)
-        self.taux_speculatif.setValue(2.25)
-        self.taux_speculatif.setSuffix(' %')
-        taux_layout.addRow('Taux spéculatif', self.taux_speculatif)
+        # Liste pour stocker les widgets CII
+        self.cii_widgets = []
         
-        # Taux commission engagement spéculatif
-        self.taux_comission_engagement_speculatif = QDoubleSpinBox()
-        self.taux_comission_engagement_speculatif.setDecimals(2)
-        self.taux_comission_engagement_speculatif.setMaximum(99.99)
-        self.taux_comission_engagement_speculatif.setValue(0.75)
-        self.taux_comission_engagement_speculatif.setSuffix(' %')
-        taux_layout.addRow('Taux commission engagement spéculatif', self.taux_comission_engagement_speculatif)
+        # Boutons pour gérer les CII
+        cii_buttons_layout = QHBoxLayout()
+        self.add_cii_button = QPushButton("Ajouter une CII")
+        self.add_cii_button.clicked.connect(self.add_cii)
+        self.remove_cii_button = QPushButton("Supprimer la dernière CII")
+        self.remove_cii_button.clicked.connect(self.remove_cii)
         
-        # Séparateur
-        separator1 = QFrame()
-        separator1.setFrameShape(QFrame.Shape.HLine)
-        separator1.setFrameShadow(QFrame.Shadow.Sunken)
-        taux_layout.addRow(separator1)
+        cii_buttons_layout.addWidget(self.add_cii_button)
+        cii_buttons_layout.addWidget(self.remove_cii_button)
+        cii_buttons_layout.addStretch()
         
-        # Cases à cocher pour les conditions non spéculatives
-        self.conditions_non_speculatives_checkbox = QCheckBox("Inclure les conditions non spéculatives")
-        self.conditions_non_speculatives_checkbox.setChecked(True)
-        taux_layout.addRow(self.conditions_non_speculatives_checkbox)
+        cii_main_layout.addLayout(cii_buttons_layout)
+        cii_main_layout.addWidget(self.cii_container)
         
-        # Taux non spéculatif
-        self.taux_non_speculatif = QDoubleSpinBox()
-        self.taux_non_speculatif.setDecimals(2)
-        self.taux_non_speculatif.setMaximum(99.99)
-        self.taux_non_speculatif.setValue(1.50)
-        self.taux_non_speculatif.setSuffix(' %')
-        taux_layout.addRow('Taux non spéculatif', self.taux_non_speculatif)
+        cii_group.setLayout(cii_main_layout)
+        scroll_layout.addWidget(cii_group)
         
-        # Taux commission engagement non spéculatif
-        self.taux_comission_engagement_non_speculatif = QDoubleSpinBox()
-        self.taux_comission_engagement_non_speculatif.setDecimals(2)
-        self.taux_comission_engagement_non_speculatif.setMaximum(99.99)
-        self.taux_comission_engagement_non_speculatif.setValue(0.50)
-        self.taux_comission_engagement_non_speculatif.setSuffix(' %')
-        taux_layout.addRow('Taux commission engagement non spéculatif', self.taux_comission_engagement_non_speculatif)
+        # Ajouter une CII par défaut
+        self.add_cii()
         
-        # Séparateur
-        separator2 = QFrame()
-        separator2.setFrameShape(QFrame.Shape.HLine)
-        separator2.setFrameShadow(QFrame.Shadow.Sunken)
-        taux_layout.addRow(separator2)
+        # Section Conditions de rémunération
+        remun_group = QGroupBox("Conditions de Rémunération")
+        remun_layout = QFormLayout()
         
-        # Taux commission forfaitaire
-        self.taux_comission_forfaitaire = QDoubleSpinBox()
-        self.taux_comission_forfaitaire.setDecimals(2)
-        self.taux_comission_forfaitaire.setMaximum(99.99)
-        self.taux_comission_forfaitaire.setValue(0.55)
-        self.taux_comission_forfaitaire.setSuffix(' %')
-        taux_layout.addRow('Taux commission forfaitaire', self.taux_comission_forfaitaire)
+        # Commission forfaitaire
+        self.commission_forfaitaire = QLineEdit()
+        self.commission_forfaitaire.setPlaceholderText("Montant en euros")
+        remun_layout.addRow('Commission forfaitaire globale (€)', self.commission_forfaitaire)
         
-        taux_group.setLayout(taux_layout)
-        scroll_layout.addWidget(taux_group)
+        # Taux commission de risque
+        self.taux_commission_risque = QDoubleSpinBox()
+        self.taux_commission_risque.setDecimals(2)
+        self.taux_commission_risque.setMaximum(99.99)
+        self.taux_commission_risque.setValue(0.50)
+        self.taux_commission_risque.setSuffix(' %')
+        remun_layout.addRow('Taux commission de risque', self.taux_commission_risque)
         
-        # Section Commercialisation
-        commercialisation_group = QGroupBox("Niveaux de Commercialisation")
-        commercialisation_layout = QFormLayout()
+        # Frais d'acte
+        self.frais_acte = QLineEdit()
+        self.frais_acte.setPlaceholderText("Montant en euros")
+        self.frais_acte.setText("290")
+        remun_layout.addRow('Frais d\'acte (€)', self.frais_acte)
         
-        # Layout horizontal pour niveau global + case à cocher apports
-        niveau_global_layout = QHBoxLayout()
-        self.niveau_commercialisation = QDoubleSpinBox()
-        self.niveau_commercialisation.setDecimals(0)
-        self.niveau_commercialisation.setMaximum(100)
-        self.niveau_commercialisation.setValue(50)
-        self.niveau_commercialisation.setSuffix(' %')
+        remun_group.setLayout(remun_layout)
+        scroll_layout.addWidget(remun_group)
         
-        self.inclure_apports_checkbox = QCheckBox("(en y ajoutant les apports)")
-        self.inclure_apports_checkbox.setChecked(True)
+        # Section Modalités
+        modalites_group = QGroupBox("Modalités")
+        modalites_layout = QFormLayout()
         
-        niveau_global_layout.addWidget(self.niveau_commercialisation)
-        niveau_global_layout.addWidget(self.inclure_apports_checkbox)
-        niveau_global_layout.addStretch()
+        # Commission de retainer
+        self.commission_retainer = QLineEdit()
+        self.commission_retainer.setPlaceholderText("Montant en euros")
+        modalites_layout.addRow('Commission de retainer (€)', self.commission_retainer)
         
-        niveau_global_widget = QWidget()
-        niveau_global_widget.setLayout(niveau_global_layout)
-        commercialisation_layout.addRow('Niveau commercialisation global', niveau_global_widget)
+        # Date de validité de l'accord
+        self.date_validite_accord = QLineEdit()
+        self.date_validite_accord.setPlaceholderText("Ex: 22 juin 2025")
+        modalites_layout.addRow('Date de fin de validité de l\'accord', self.date_validite_accord)
         
-        commercialisation_group.setLayout(commercialisation_layout)
-        scroll_layout.addWidget(commercialisation_group)
-        
-        # Section clauses optionnelles
-        self.clauses_group = QGroupBox("Clauses Optionnelles")
-        self.clauses_layout = QVBoxLayout()
-        self.clauses_group.setLayout(self.clauses_layout)
-        scroll_layout.addWidget(self.clauses_group)
+        modalites_group.setLayout(modalites_layout)
+        scroll_layout.addWidget(modalites_group)
         
         # Boutons d'action
         buttons_layout = QHBoxLayout()
         
-        self.generate_button = QPushButton("Générer le Termsheet")
+        self.generate_button = QPushButton("Générer le Termsheet CII")
         self.generate_button.clicked.connect(self.generate_termsheet)
         self.generate_button.setEnabled(False)
         
@@ -434,78 +330,69 @@ class TermsheetGenerator(QMainWindow):
         main_layout.addWidget(scroll)
         main_widget.setLayout(main_layout)
     
-    def setup_clauses(self):
-        """Configure les clauses optionnelles"""
-        clauses_config = [
-            {
-                'name': 'Garantie d\'actif/passif (rachat de parts)',
-                'text': 'Le cas échéant, production de la garantie d\'actif/passif fournie par les vendeurs et examen favorable de LCL',
-                'fields': [
-                    {'name': 'nom_vendeur', 'label': 'Nom du vendeur (optionnel)', 'type': 'text'}
-                ]
-            },
-            {
-                'name': 'Niveau de commercialisation (lots T3, T4, T5)',
-                'text': 'Justification d\'un niveau de commercialisation incluant au moins [nombre_t3] lots de type T3 ainsi qu\'au moins [nombre_t4] lots de type T4 et [nombre_t5] lots de type T5 (attestation du Notaire indiquant le niveau de pré commercialisation)',
-                'fields': [
-                    {'name': 'nombre_t3', 'label': 'Nombre de lots T3', 'type': 'number'},
-                    {'name': 'nombre_t4', 'label': 'Nombre de lots T4', 'type': 'number'},
-                    {'name': 'nombre_t5', 'label': 'Nombre de lots T5', 'type': 'number'}
-                ]
-            },
-            {
-                'name': 'Accord de financement des réservataires',
-                'text': 'Justification de l\'obtention d\'un accord de principe de financement par la majorité des réservataires',
-                'fields': []
-            },
-            {
-                'name': 'Agrément bailleur social',
-                'text': 'Justification de l\'obtention de l\'agrément par [nom_bailleur_agrement] pour la partie « [type_bloc] »',
-                'fields': [
-                    {'name': 'nom_bailleur_agrement', 'label': 'Nom du bailleur', 'type': 'text'},
-                    {'name': 'type_bloc', 'label': 'Type de bloc (social/LLS/LLI/ULS)', 'type': 'text'}
-                ]
-            },
-            {
-                'name': 'Engagement d\'information modification PC',
-                'text': 'Engagement de l\'emprunteur d\'informer la banque de toute demande de PC modificatif et ce jusqu\'au remboursement complet des concours accordés',
-                'fields': []
-            },
-
-            {
-                'name': 'Contrat de réservation bailleur',
-                'text': 'Justification d\'un contrat de réservation signé de [nom du bailleur] pour la partie « [bloc social / LLS (logements locatifs sociaux) / LLI (logements locatifs intermédiaires) / ULS (usufruit locatif social)] » comprenant nom, adresse, prix de vente TTC et échéancier des versements',
-                'fields': [
-                    {'name': 'nom_bailleur_reservation', 'label': 'Nom du bailleur (réservation)', 'type': 'text'},
-                    {'name': 'type_bloc_reservation', 'label': 'Type de bloc (social/LLS/LLI/ULS)', 'type': 'text'}
-                ]
-            },
-            {
-                'name': 'Niveau de commercialisation libre',
-                'text': "Justification d'un niveau de commercialisation du CATTC « libre » dépassant [niveau_commercialisation_libre]% du CATTC « libre » (attestation notariée indiquant le niveau de pré commercialisation) ;",
-                'fields': [
-                    {'name': 'niveau_commercialisation_libre', 'label': 'Niveau commercialisation libre (%)', 'type': 'number'}
-                ]
-            },
-
-        ]
+    def add_cii(self):
+        """Ajoute une nouvelle CII"""
+        cii_index = len(self.cii_widgets)
         
-        self.clause_widgets = []
+        # Créer le widget pour cette CII
+        cii_widget = QGroupBox(f"CII #{cii_index + 1}")
+        cii_form_layout = QFormLayout()
         
-        for clause_config in clauses_config:
-            clause_widget = ClauseWidget(
-                clause_config['name'],
-                clause_config['text'],
-                clause_config['fields']
-            )
-            self.clause_widgets.append(clause_widget)
-            self.clauses_layout.addWidget(clause_widget)
+        # Dictionnaire pour stocker les champs de cette CII
+        cii_fields = {}
+        
+        # Bénéficiaires
+        beneficiaires = QLineEdit()
+        beneficiaires.setPlaceholderText("Ex: Madame Marie DUPONT et Monsieur Pierre MARTIN")
+        cii_fields['beneficiaires'] = beneficiaires
+        cii_form_layout.addRow('Bénéficiaires (en faveur de)', beneficiaires)
+        
+        # Venant au droit de (optionnel)
+        venant_au_droit = QLineEdit()
+        venant_au_droit.setPlaceholderText("Optionnel - Ex: Monsieur Jean MARTIN")
+        cii_fields['venant_au_droit'] = venant_au_droit
+        cii_form_layout.addRow('Venant au droit de (optionnel)', venant_au_droit)
+        
+        # Montant
+        montant = QLineEdit()
+        montant.setPlaceholderText("Montant en euros")
+        cii_fields['montant'] = montant
+        cii_form_layout.addRow('Montant (€)', montant)
+        
+        # Date d'échéance
+        date_echeance = QLineEdit()
+        date_echeance.setPlaceholderText("Ex: 31 juillet 2025")
+        cii_fields['date_echeance'] = date_echeance
+        cii_form_layout.addRow('Date d\'échéance', date_echeance)
+        
+        cii_widget.setLayout(cii_form_layout)
+        
+        # Stocker le widget et ses champs
+        self.cii_widgets.append({
+            'widget': cii_widget,
+            'fields': cii_fields
+        })
+        
+        # Ajouter à l'interface
+        self.cii_layout.addWidget(cii_widget)
+        
+        # Mettre à jour l'état du bouton supprimer
+        self.remove_cii_button.setEnabled(len(self.cii_widgets) > 1)
+    
+    def remove_cii(self):
+        """Supprime la dernière CII"""
+        if len(self.cii_widgets) > 1:
+            # Récupérer et supprimer le dernier widget
+            last_cii = self.cii_widgets.pop()
+            last_cii['widget'].setParent(None)
+            last_cii['widget'].deleteLater()
             
-            # Ajouter un séparateur
-            line = QFrame()
-            line.setFrameShape(QFrame.Shape.HLine)
-            line.setFrameShadow(QFrame.Shadow.Sunken)
-            self.clauses_layout.addWidget(line)
+            # Mettre à jour l'état du bouton supprimer
+            self.remove_cii_button.setEnabled(len(self.cii_widgets) > 1)
+            
+            # Mettre à jour les titres des CII restantes
+            for i, cii_data in enumerate(self.cii_widgets):
+                cii_data['widget'].setTitle(f"CII #{i + 1}")
     
     def import_template(self):
         """Importe un template Word"""
@@ -528,12 +415,7 @@ class TermsheetGenerator(QMainWindow):
         
         # Champs principaux
         for field_key, widget in self.fields.items():
-            text = widget.text().strip()
-            # Pour les montants, applique le formatage à points
-            if field_key in ['montant_credit', 'montant_gfa', 'frais_dossier', 'montant_apports']:
-                text = format_number_with_dots(text)
-            values[field_key] = text
-
+            values[field_key] = widget.text().strip()
         
         # Civilité
         values['civilite'] = self.civilite_combo.currentText()
@@ -541,49 +423,91 @@ class TermsheetGenerator(QMainWindow):
         # Objet/Description
         values['objet'] = self.objet_text.toPlainText().strip()
         
-        # Nouveaux champs de taux
-        values['taux_speculatif'] = f"{self.taux_speculatif.value():.2f}".replace('.', ',')
-        values['taux_non_speculatif'] = f"{self.taux_non_speculatif.value():.2f}".replace('.', ',')
-        values['taux_comission_engagement_speculatif'] = f"{self.taux_comission_engagement_speculatif.value():.2f}".replace('.', ',')
-        values['taux_comission_engagement_non_speculatif'] = f"{self.taux_comission_engagement_non_speculatif.value():.2f}".replace('.', ',')
-        values['taux_comission_forfaitaire'] = f"{self.taux_comission_forfaitaire.value():.2f}".replace('.', ',')
+        # Générer la section complète des CII
+        values['section_complete_cii'] = self.generate_cii_section()
         
-        # Niveaux de commercialisation
-        values['niveau_commercialisation'] = f"{int(self.niveau_commercialisation.value())}"
+        # Montants autres (pour compatibilité si besoin)
+        values['commission_forfaitaire'] = format_number_with_dots(self.commission_forfaitaire.text().strip())
+        values['frais_acte'] = format_number_with_dots(self.frais_acte.text().strip())
+        values['commission_retainer'] = format_number_with_dots(self.commission_retainer.text().strip())
         
-        # État des cases à cocher
-        values['inclure_apports'] = self.inclure_apports_checkbox.isChecked()
-        values['conditions_speculatives'] = self.conditions_speculatives_checkbox.isChecked()
-        values['conditions_non_speculatives'] = self.conditions_non_speculatives_checkbox.isChecked()
+        # Dates
+        values['date_validite_accord'] = self.date_validite_accord.text().strip()
         
-        # Récupérer les valeurs des clauses optionnelles
-        for clause_widget in self.clause_widgets:
-            if clause_widget.is_enabled():
-                field_values = clause_widget.get_field_values()
-                values.update(field_values)
+        # Taux
+        values['taux_commission_risque'] = f"{self.taux_commission_risque.value():.2f}".replace('.', ',')
         
         # Convertir les montants en lettres
         try:
-            if values['montant_credit']:
-                montant = int(values['montant_credit'].replace(' ', '').replace('.', '').replace(',', ''))
-                values['montant_credit_lettres'] = NumberToWords.convert(montant)
-
-            if values['montant_gfa']:
-                montant = int(values['montant_gfa'].replace(' ', '').replace('.', '').replace(',', ''))
-                values['montant_gfa_lettres'] = NumberToWords.convert(montant)
-
-            if values['frais_dossier']:
-                montant = int(values['frais_dossier'].replace(' ', '').replace('.', '').replace(',', ''))
-                values['frais_dossier_lettres'] = NumberToWords.convert(montant)
-
-            if values['montant_apports']:
-                montant = int(values['montant_apports'].replace(' ', '').replace('.', '').replace(',', ''))
-                values['montant_apports_lettres'] = NumberToWords.convert(montant)
-
+            if values['commission_forfaitaire']:
+                montant = int(values['commission_forfaitaire'].replace(' ', '').replace('.', '').replace(',', ''))
+                values['commission_forfaitaire_lettres'] = NumberToWords.convert(montant)
+            
+            if values['frais_acte']:
+                montant = int(values['frais_acte'].replace(' ', '').replace('.', '').replace(',', ''))
+                values['frais_acte_lettres'] = NumberToWords.convert(montant)
+            
+            if values['commission_retainer']:
+                montant = int(values['commission_retainer'].replace(' ', '').replace('.', '').replace(',', ''))
+                values['commission_retainer_lettres'] = NumberToWords.convert(montant)
+                
         except ValueError:
             pass  # Ignorer les erreurs de conversion
         
         return values
+    
+    def generate_cii_section(self) -> str:
+        """Génère la section complète des CII"""
+        if not self.cii_widgets:
+            return ""
+        
+        cii_sections = []
+        
+        for i, cii_data in enumerate(self.cii_widgets):
+            fields = cii_data['fields']
+            
+            # Récupérer les valeurs
+            beneficiaires = fields['beneficiaires'].text().strip()
+            venant_au_droit = fields['venant_au_droit'].text().strip()
+            montant_str = fields['montant'].text().strip()
+            date_echeance = fields['date_echeance'].text().strip()
+            
+            if not beneficiaires or not montant_str or not date_echeance:
+                continue  # Ignorer les CII incomplètes
+            
+            # Formater le montant
+            montant_formate = format_number_with_dots(montant_str)
+            
+            # Convertir en lettres
+            try:
+                montant_int = int(montant_str.replace(' ', '').replace(',', '').replace('.', ''))
+                montant_lettres = NumberToWords.convert(montant_int)
+            except ValueError:
+                montant_lettres = ""
+            
+            # Construire le texte de la CII
+            cii_text = "Caution d'indemnité d'immobilisation (CII) :\n\n"
+            
+            # Point a. Nature avec bénéficiaires
+            nature_text = f"a. Caution d'indemnité d'immobilisation (CII), émise en faveur de {beneficiaires}"
+            if venant_au_droit:
+                nature_text += f", venant au droit de {venant_au_droit}"
+            nature_text += ".\n\n"
+            
+            cii_text += nature_text
+            
+            # Point b. Montant
+            cii_text += f"b. Montant : {montant_formate} €"
+            if montant_lettres:
+                cii_text += f" ({montant_lettres} euros)"
+            cii_text += ".\n\n"
+            
+            # Point c. Date d'échéance
+            cii_text += f"c. Date d'échéance : {date_echeance}.\n\n"
+            
+            cii_sections.append(cii_text)
+        
+        return "\n".join(cii_sections)
     
     def preview_termsheet(self):
         """Affiche un aperçu des valeurs qui seront remplacées"""
@@ -594,35 +518,57 @@ class TermsheetGenerator(QMainWindow):
         values = self.get_all_values()
         
         # Créer le texte d'aperçu
-        preview_text = "=== APERÇU DES VALEURS ===\n\n"
+        preview_text = "=== APERÇU DES VALEURS CII ===\n\n"
         
-        preview_text += "CHAMPS PRINCIPAUX:\n"
-        for key, value in values.items():
-            if value and not key.endswith('_lettres') and key not in ['inclure_apports', 'conditions_speculatives', 'conditions_non_speculatives']:
-                preview_text += f"[{key.upper()}] = {value}\n"
+        preview_text += "INFORMATIONS GÉNÉRALES:\n"
+        for key in ['nom_promoteur', 'nom_contact', 'adresse_promoteur', 'date', 'reference_dossier', 'civilite', 'nom_sccv', 'numero_siren', 'ville_rcs']:
+            if values.get(key):
+                preview_text += f"[{key.upper()}] = {values[key]}\n"
         
-        preview_text += "\n\nOPTIONS:\n"
-        if values.get('inclure_apports'):
-            preview_text += "✓ Mention '(en y ajoutant les apports)' incluse\n"
-        if values.get('conditions_speculatives'):
-            preview_text += "✓ Conditions spéculatives incluses\n"
-        if values.get('conditions_non_speculatives'):
-            preview_text += "✓ Conditions non spéculatives incluses\n"
+        preview_text += f"\nOBJET:\n{values.get('objet', '')}\n"
         
-        preview_text += "\n\nCLAUSES OPTIONNELLES:\n"
-        for clause_widget in self.clause_widgets:
-            if clause_widget.is_enabled():
-                preview_text += f"✓ {clause_widget.clause_name}\n"
-                field_values = clause_widget.get_field_values()
-                for field_name, field_value in field_values.items():
-                    if field_value:
-                        preview_text += f"  - {field_name}: {field_value}\n"
-            else:
-                preview_text += f"✗ {clause_widget.clause_name} (désactivée)\n"
+        preview_text += "\nCAUTIONS D'INDEMNITÉ D'IMMOBILISATION:\n"
+        preview_text += f"Nombre de CII: {len(self.cii_widgets)}\n"
+        
+        for i, cii_data in enumerate(self.cii_widgets):
+            fields = cii_data['fields']
+            beneficiaires = fields['beneficiaires'].text().strip()
+            venant_au_droit = fields['venant_au_droit'].text().strip()
+            montant = fields['montant'].text().strip()
+            date_echeance = fields['date_echeance'].text().strip()
+            
+            preview_text += f"\nCII #{i+1}:\n"
+            if beneficiaires:
+                preview_text += f"  - Bénéficiaires: {beneficiaires}\n"
+            if venant_au_droit:
+                preview_text += f"  - Venant au droit de: {venant_au_droit}\n"
+            if montant:
+                montant_formate = format_number_with_dots(montant)
+                try:
+                    montant_int = int(montant.replace(' ', '').replace(',', '').replace('.', ''))
+                    montant_lettres = NumberToWords.convert(montant_int)
+                    preview_text += f"  - Montant: {montant_formate} € ({montant_lettres} euros)\n"
+                except:
+                    preview_text += f"  - Montant: {montant_formate} €\n"
+            if date_echeance:
+                preview_text += f"  - Date d'échéance: {date_echeance}\n"
+        
+        preview_text += "\nCONDITIONS DE RÉMUNÉRATION:\n"
+        if values.get('commission_forfaitaire'):
+            preview_text += f"Commission forfaitaire: {values['commission_forfaitaire']} € ({values.get('commission_forfaitaire_lettres', '')})\n"
+        preview_text += f"Taux commission de risque: {values.get('taux_commission_risque', '')}%\n"
+        if values.get('frais_acte'):
+            preview_text += f"Frais d'acte: {values['frais_acte']} € ({values.get('frais_acte_lettres', '')})\n"
+        
+        preview_text += "\nMODALITÉS:\n"
+        if values.get('commission_retainer'):
+            preview_text += f"Commission de retainer: {values['commission_retainer']} € ({values.get('commission_retainer_lettres', '')})\n"
+        if values.get('date_validite_accord'):
+            preview_text += f"Date de validité: {values['date_validite_accord']}\n"
         
         # Afficher dans une boîte de dialogue
         msg = QMessageBox()
-        msg.setWindowTitle("Aperçu du Termsheet")
+        msg.setWindowTitle("Aperçu du Termsheet CII")
         msg.setText(preview_text)
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)
         msg.exec()
@@ -643,9 +589,6 @@ class TermsheetGenerator(QMainWindow):
             # Remplacer les variables dans le document
             self.replace_variables_in_document(doc, values)
             
-            # Traiter les clauses optionnelles
-            self.process_optional_clauses(doc)
-            
             # Sauvegarder le fichier généré
             output_path = self.get_output_path()
             doc.save(output_path)
@@ -653,8 +596,8 @@ class TermsheetGenerator(QMainWindow):
             # Message de succès
             reply = QMessageBox.question(
                 self,
-                "Termsheet généré",
-                f"Le termsheet a été généré avec succès !\n\nFichier: {Path(output_path).name}\n\nVoulez-vous ouvrir le dossier de destination ?",
+                "Termsheet CII généré",
+                f"Le termsheet CII a été généré avec succès !\n\nFichier: {Path(output_path).name}\n\nVoulez-vous ouvrir le dossier de destination ?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             
@@ -703,112 +646,22 @@ class TermsheetGenerator(QMainWindow):
             '[nom]': values.get('nom_contact', ''),
             '[Adresse du promoteur]': values.get('adresse_promoteur', ''),
             '[date]': values.get('date', ''),
-            '[référence dossier]': values.get('reference_dossier', ''),
+            '[réference dossier]': values.get('reference_dossier', ''),
             '[Monsieur/Madame/Messieurs]': values.get('civilite', ''),
             '[NOM]': values.get('nom_sccv', ''),
             '[n° siren]': values.get('numero_siren', ''),
             '[Ville]': values.get('ville_rcs', ''),
-            '[nom de la SCCV]': values.get('nom_sccv', ''),
             '[objet]': values.get('objet', ''),
-            '[le bailleur]': values.get('nom_bailleur_agrement', ''),
-            '[nombre_credit]': values.get('montant_credit', ''),
-            '[nombre_credit_lettres]': values.get('montant_credit_lettres', ''),
-            '[montant_credit]': values.get('montant_credit', ''),
-            '[montant_credit_lettres]': values.get('montant_credit_lettres', ''),
-            '[nombre_gfa]': values.get('montant_gfa', ''),
-            '[nombre_gfa_lettres]': values.get('montant_gfa_lettres', ''),
-            '[nombre_apport]': values.get('montant_apports', ''),
-            '[nombre_apport_lettres]': values.get('montant_apports_lettres', ''),
-            '[nombre_frais_dossier]': values.get('frais_dossier', ''),
-            '[nombre_frais_dossier_lettres]': values.get('frais_dossier_lettres', ''),
-            '[nombre_t3]': values.get('nombre_t3', ''),
-            '[nombre_t4]': values.get('nombre_t4', ''),
-            '[nombre_t5]': values.get('nombre_t5', ''),
-            '[taux_speculatif]': values.get('taux_speculatif', ''),
-            '[taux_non_speculatif]': values.get('taux_non_speculatif', ''),
-            '[taux_comission_engagement_speculatif]': values.get('taux_comission_engagement_speculatif', ''),
-            '[taux_comission_engagement_non_speculatif]': values.get('taux_comission_engagement_non_speculatif', ''),
-            '[taux_comission_forfaitaire]': values.get('taux_comission_forfaitaire', ''),
-            '[niveau_commercialisation_libre]': values.get('niveau_commercialisation_libre', ''),
-            '[nom_bailleur_agrement]': values.get('nom_bailleur_agrement', ''),
-            '[type_bloc]': values.get('type_bloc', ''),
-            '[date_echeance_gfa]': values.get('date_echeance_gfa', ''),
-            '[nom du bailleur]': values.get('nom_bailleur_reservation', ''),
-            '[nom_bailleur_reservation]': values.get('nom_bailleur_reservation', ''),
-            '[type_bloc_reservation]': values.get('type_bloc_reservation', ''),
+            '[section_complete_cii]': values.get('section_complete_cii', ''),
+            '[nombre_comission_forfaitaire]': values.get('commission_forfaitaire', ''),
+            '[nombre_comission_forfaitaire_lettres]': values.get('commission_forfaitaire_lettres', ''),
+            '[taux_commission_risque]': values.get('taux_commission_risque', ''),
+            '[nombre_frais_acte]': values.get('frais_acte', ''),
+            '[nombre_frais_acte_lettres]': values.get('frais_acte_lettres', ''),
+            '[nombre_commission_retainer]': values.get('commission_retainer', ''),
+            '[nombre_commission_retainer_lettres]': values.get('commission_retainer_lettres', ''),
+            '[date_validite_accord]': values.get('date_validite_accord', ''),
         }
-        
-        # Gestion du niveau de commercialisation avec/sans apports
-        if values.get('inclure_apports', False):
-            replacements['[niveau_commercialisation]'] = f"{values.get('niveau_commercialisation', '')}"
-            replacements['[mention_apports]'] = '(en y ajoutant les apports),'
-        else:
-            replacements['[niveau_commercialisation]'] = f"{values.get('niveau_commercialisation', '')}"
-            replacements['[mention_apports]'] = ''
-        
-        # Gestion des conditions spéculatives
-        if values.get('conditions_speculatives', True):
-            replacements['[interets_speculatifs]'] = f"Intérêts portant sur les sommes utilisées calculés sur l'EURIBOR de la durée du tirage (minimum un mois -- maximum 12 mois) majoré de {values.get('taux_speculatif', '')}% l'an, perçus d'avance le jour de la mise à disposition des fonds ;"
-            replacements['[commission_speculative]'] = f"{values.get('taux_comission_engagement_speculatif', '')}% l'an, calculée sur le montant total du crédit autorisé et perçue trimestriellement et d'avance ;"
-        else:
-            replacements['[interets_speculatifs]'] = ''
-            replacements['[commission_speculative]'] = ''
-        
-        # Gestion des conditions non spéculatives
-        if values.get('conditions_non_speculatives', True):
-            replacements['[interets_non_speculatifs]'] = f"Lorsque le montant du CA TTC des VEFA actées atteindra 40% et plus du Prix de Revient TTC, les intérêts portant sur les sommes utilisées calculés sur l'EURIBOR de la durée du tirage (minimum un mois -- maximum 12 mois) seront ramenés à {values.get('taux_non_speculatif', '')}% l'an, perçus d'avance le jour de la mise à disposition des fonds."
-            replacements['[commission_non_speculative]'] = f"Lorsque le montant du CA TTC des VEFA actées atteindra 40% et plus du Prix de Revient TTC, {values.get('taux_comission_engagement_non_speculatif', '')}% l'an, calculée sur le montant total du crédit autorisé et perçue trimestriellement et d'avance."
-        else:
-            replacements['[interets_non_speculatifs]'] = ''
-            replacements['[commission_non_speculative]'] = ''
-        
-        # Gestion des clauses optionnelles
-        # Clause 1: Garantie d'actif/passif
-        if self.clause_widgets[0].is_enabled():
-            replacements['[clause_garantie_actif_passif]'] = "Le cas échéant, production de la garantie d'actif/passif fournie par les vendeurs et examen favorable de LCL ; {cas rachat de parts de société}"
-        else:
-            replacements['[clause_garantie_actif_passif]'] = ''
-        
-        # Clause 2: Niveau de commercialisation lots
-        if self.clause_widgets[1].is_enabled():
-            replacements['[clause_niveau_commercialisation_lots]'] = f"Justification d'un niveau de commercialisation incluant au moins {values.get('nombre_t3', '')} lots de type T3 ainsi qu'au moins {values.get('nombre_t4', '')} lots de type T4 et {values.get('nombre_t5', '')} lots de type T5 (attestation du Notaire indiquant le niveau de pré commercialisation) ;"
-        else:
-            replacements['[clause_niveau_commercialisation_lots]'] = ''
-        
-        # Clause 3: Accord de financement
-        if self.clause_widgets[2].is_enabled():
-            replacements['[clause_accord_financement]'] = "Justification de l'obtention d'un accord de principe de financement par la majorité des réservataires ;"
-        else:
-            replacements['[clause_accord_financement]'] = ''
-        
-        # Clause 4: Agrément bailleur
-        if self.clause_widgets[3].is_enabled():
-            replacements['[clause_agrement_bailleur]'] = f"Justification de l'obtention de l'agrément par {values.get('nom_bailleur_agrement', '')} pour la partie « {values.get('type_bloc', '')} » ;"
-        else:
-            replacements['[clause_agrement_bailleur]'] = ''
-        
-        # Clause 5: Engagement PC
-        if self.clause_widgets[4].is_enabled():
-            replacements['[clause_engagement_pc]'] = "Engagement de l'emprunteur d'informer la banque de toute demande de PC modificatif et ce jusqu'au remboursement complet des concours accordés ;"
-        else:
-            replacements['[clause_engagement_pc]'] = ''
-        
-        # Clause 6: Contrat de réservation
-        if self.clause_widgets[5].is_enabled():
-            replacements['[clause_contrat_reservation]'] = f"Justification d'un contrat de réservation signé de {values.get('nom_bailleur_reservation', '')} pour la partie « {values.get('type_bloc_reservation', '')} » comprenant nom, adresse, prix de vente TTC et échéancier des versements ;"
-        else:
-            replacements['[clause_contrat_reservation]'] = ''
-
-        # Clause 7: Niveau de commercialisation libre
-        if len(self.clause_widgets) > 6 and self.clause_widgets[6].is_enabled():
-            niveau = values.get('niveau_commercialisation_libre', '')
-            replacements['[clause_niveau_commercialisation_libre]'] = (
-                f"Justification d'un niveau de commercialisation du CATTC « libre » dépassant {niveau}% du CATTC « libre » (attestation notariée indiquant le niveau de pré commercialisation) ;"
-                if niveau else ''
-            )
-        else:
-            replacements['[clause_niveau_commercialisation_libre]'] = ''
-
         
         # Effectuer les remplacements
         new_text = original_text
@@ -843,70 +696,16 @@ class TermsheetGenerator(QMainWindow):
             else:
                 paragraph.text = new_text
     
-    def process_optional_clauses(self, doc: Document):
-        """Traite les clauses optionnelles - plus besoin de supprimer, tout est géré dans replace_in_paragraph"""
-        # Cette méthode n'est plus nécessaire car tout est géré dans replace_in_paragraph
-        # mais on la garde pour compatibilité
-        pass
-    
-    def remove_speculative_conditions(self, doc: Document):
-        """Supprime les conditions spéculatives du document"""
-        speculative_patterns = [
-            r'Intérêts portant sur les sommes utilisées.*?majoré de.*?fonds.*?;',
-            r'0,75%.*?l\'an.*?calculée sur le montant total du crédit autorisé.*?d\'avance.*?;'
-        ]
-        
-        for pattern in speculative_patterns:
-            self.remove_clause_from_document(doc, pattern)
-    
-    def remove_non_speculative_conditions(self, doc: Document):
-        """Supprime les conditions non spéculatives du document"""
-        non_speculative_patterns = [
-            r'Lorsque le montant du CA TTC des VEFA actées atteindra 40%.*?fonds\.',
-            r'Lorsque le montant du CA TTC des VEFA actées atteindra 40%.*?d\'avance\.'
-        ]
-        
-        for pattern in non_speculative_patterns:
-            self.remove_clause_from_document(doc, pattern)
-    
-    def remove_clause_from_document(self, doc: Document, pattern: str):
-        """Supprime une clause du document"""
-        paragraphs_to_remove = []
-        
-        # Rechercher dans tous les paragraphes
-        for paragraph in doc.paragraphs:
-            if re.search(pattern, paragraph.text, re.IGNORECASE | re.DOTALL):
-                paragraphs_to_remove.append(paragraph)
-        
-        # Rechercher dans les tableaux
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    cell_paragraphs_to_remove = []
-                    for paragraph in cell.paragraphs:
-                        if re.search(pattern, paragraph.text, re.IGNORECASE | re.DOTALL):
-                            cell_paragraphs_to_remove.append(paragraph)
-                    
-                    # Supprimer les paragraphes des cellules
-                    for paragraph in cell_paragraphs_to_remove:
-                        p = paragraph._element
-                        p.getparent().remove(p)
-        
-        # Supprimer les paragraphes identifiés
-        for paragraph in paragraphs_to_remove:
-            p = paragraph._element
-            p.getparent().remove(p)
-    
     def get_output_path(self) -> str:
         """Génère le chemin de sortie pour le fichier"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         template_name = Path(self.template_path).stem
-        output_name = f"{template_name}_genere_{timestamp}.docx"
+        output_name = f"{template_name}_CII_genere_{timestamp}.docx"
         
         # Demander à l'utilisateur où sauvegarder
         output_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Sauvegarder le termsheet généré",
+            "Sauvegarder le termsheet CII généré",
             output_name,
             "Fichiers Word (*.docx);;Tous les fichiers (*)"
         )
@@ -932,7 +731,7 @@ def main():
         return
     
     app = QApplication(sys.argv)
-    app.setApplicationName("Générateur de Termsheet LCL")
+    app.setApplicationName("Générateur de Termsheet CII - LCL")
     
     # Définir l'icône de l'application si disponible
     try:
@@ -1034,7 +833,7 @@ def main():
         }
     """)
     
-    window = TermsheetGenerator()
+    window = TermsheetCIIGenerator()
     window.show()
     
     sys.exit(app.exec())
